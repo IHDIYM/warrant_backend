@@ -5,7 +5,7 @@ google-generativeai
 langchain==0.3.25
 langchain-community==0.3.23
 langchain-google-genai
-pymongo==4.6.0
+pymongo==4.5.0
 faiss-cpu==1.11.0
 gunicorn==23.0.0
 dnspython==1.16.0

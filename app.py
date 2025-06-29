@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from bson import ObjectId, json_util
 import uuid
 import os
+import ssl
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
@@ -26,9 +27,14 @@ if not os.path.exists(FAISS_PATH):
     os.makedirs(FAISS_PATH)
     logger.info(f"Created FAISS directory at {FAISS_PATH}")
 
+# Configure SSL context for Python 3.13 compatibility
+ssl_context = ssl.create_default_context()
+ssl_context.check_hostname = False
+ssl_context.verify_mode = ssl.CERT_NONE
+
 # MongoDB setup
 # Set MONGODB_URI environment variable in Render with your actual MongoDB Atlas connection string
-MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb+srv://ihdiym:4uVbFCTl1dG9Y23u@ai-cluster.tsnsuuu.mongodb.net/?retryWrites=true&w=majority&appName=ai-cluster")
+MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb+srv://ihdiym:4uVbFCTl1dG9Y23u@ai-cluster.tsnsuuu.mongodb.net/warranty_assistant?retryWrites=true&w=majority")
 
 # Initialize MongoDB connection with error handling
 client = None
@@ -39,19 +45,20 @@ chats_collection = None
 purchases_collection = None
 
 try:
-    # Updated connection with proper SSL/TLS configuration for Render
+    # Updated connection with SSL configuration compatible with Python 3.13 on Render
     client = MongoClient(
         MONGODB_URI,
-        serverSelectionTimeoutMS=10000,
-        connectTimeoutMS=10000,
-        socketTimeoutMS=10000,
+        serverSelectionTimeoutMS=30000,
+        connectTimeoutMS=30000,
+        socketTimeoutMS=30000,
         maxPoolSize=10,
         minPoolSize=1,
         maxIdleTimeMS=30000,
         retryWrites=True,
         retryReads=True,
-        tls=True,
-        tlsInsecure=False
+        ssl_cert_reqs=ssl.CERT_NONE,
+        ssl_ca_certs=None,
+        ssl_match_hostname=False
     )
     # Test the connection
     client.admin.command('ping')
