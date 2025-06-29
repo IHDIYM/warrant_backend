@@ -34,7 +34,7 @@ ssl_context.verify_mode = ssl.CERT_NONE
 
 # MongoDB setup
 # Set MONGODB_URI environment variable in Render with your actual MongoDB Atlas connection string
-MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb+srv://ihdiym:4uVbFCTl1dG9Y23u@ai-cluster.tsnsuuu.mongodb.net/warranty_assistant?retryWrites=true&w=majority")
+MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb+srv://ihdiym:4uVbFCTl1dG9Y23u@ai-cluster.tsnsuuu.mongodb.net/warranty_assistant?retryWrites=true&w=majority&tlsInsecure=true")
 
 # Initialize MongoDB connection with error handling
 client = None
