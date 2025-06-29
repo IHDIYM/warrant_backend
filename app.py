@@ -15,18 +15,10 @@ logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app, resources={
-    r"/api/*": {
-        "origins": [
-            "http://localhost:5173",
-            "http://localhost:5174",
-            "https://waaranty-assistant.netlify.app"  # <-- your Netlify site
-        ],
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"],
-        "supports_credentials": True
-    }
-})
+CORS(app, origins=[
+    "https://waaranty-assistant.netlify.app",
+    "https://warranty-assistant.netlify.app"
+], supports_credentials=True)
 
 # Create FAISS directory if it doesn't exist
 FAISS_PATH = "faiss_index"
@@ -35,7 +27,8 @@ if not os.path.exists(FAISS_PATH):
     logger.info(f"Created FAISS directory at {FAISS_PATH}")
 
 # MongoDB setup
-MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb+srv://rtkvma:4uVbFCTl1dG9Y23u@ai-cluster.tsnsuuu.mongodb.net/?retryWrites=true&w=majority&appName=ai-cluster")
+# Set MONGODB_URI environment variable in Render with your actual MongoDB Atlas connection string
+MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb+srv://ihdiym:4uVbFCTl1dG9Y23u@ai-cluster.tsnsuuu.mongodb.net/?retryWrites=true&w=majority&appName=ai-cluster&ssl=true&tlsAllowInvalidCertificates=true")
 
 # Initialize MongoDB connection with error handling
 client = None
@@ -46,7 +39,7 @@ chats_collection = None
 purchases_collection = None
 
 try:
-    client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
+    client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000, tlsAllowInvalidCertificates=True)
     # Test the connection
     client.admin.command('ping')
     db = client.warranty_assistant
