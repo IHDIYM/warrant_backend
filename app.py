@@ -5,7 +5,7 @@ from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from google.generativeai import GenerativeModel, configure
 import logging
 from pymongo import MongoClient
-from datetime import datetime
+from datetime import datetime, timezone
 from bson import ObjectId, json_util
 import uuid
 import os
@@ -107,9 +107,9 @@ def get_or_create_chat_session(user_id, username):
             "username": username,
             "active": True,
             "messages": [],
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
-            "login_time": datetime.utcnow()
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
+            "login_time": datetime.now(timezone.utc)
         }
         result = chats_collection.insert_one(chat_session)
         chat_session['_id'] = result.inserted_id
@@ -117,7 +117,7 @@ def get_or_create_chat_session(user_id, username):
         # Update login time for existing session
         chats_collection.update_one(
             {"_id": chat_session["_id"]},
-            {"$set": {"login_time": datetime.utcnow()}}
+            {"$set": {"login_time": datetime.now(timezone.utc)}}
         )
     
     return chat_session
@@ -127,12 +127,12 @@ def update_chat_session(chat_id, message, response):
         {
             "role": "user",
             "content": message,
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.now(timezone.utc)
         },
         {
             "role": "assistant",
             "content": response,
-            "timestamp": datetime.utcnow()
+            "timestamp": datetime.now(timezone.utc)
         }
     ]
     
@@ -147,7 +147,7 @@ def update_chat_session(chat_id, message, response):
         {"_id": chat_id},
         {
             "$push": {"messages": {"$each": chat_messages}},
-            "$set": {"updated_at": datetime.utcnow()}
+            "$set": {"updated_at": datetime.now(timezone.utc)}
         }
     )
 
@@ -512,7 +512,7 @@ def create_user():
             'name': name,
             'email': email,
             'whatsapp': whatsapp,
-            'created_at': datetime.utcnow()
+            'created_at': datetime.now(timezone.utc)
         }
         
         users_collection.insert_one(user)
