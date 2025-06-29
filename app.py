@@ -36,24 +36,58 @@ if not os.path.exists(FAISS_PATH):
 
 # MongoDB setup
 MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb+srv://rtkvma:4uVbFCTl1dG9Y23u@ai-cluster.tsnsuuu.mongodb.net/?retryWrites=true&w=majority&appName=ai-cluster")
-client = MongoClient(MONGODB_URI)
-db = client.warranty_assistant
-users_collection = db.users
-technicians_collection = db.technicians
-chats_collection = db.chats
-purchases_collection = db.purchases
 
-# Add a default technician account if it doesn't exist
-default_technician = {
-    'email': 'tech@warranty.com',
-    'whatsapp': '1234567890',
-    'name': 'Default Technician',
-    'role': 'technician'
-}
+# Initialize MongoDB connection with error handling
+client = None
+db = None
+users_collection = None
+technicians_collection = None
+chats_collection = None
+purchases_collection = None
 
-if not technicians_collection.find_one({'email': default_technician['email']}):
-    technicians_collection.insert_one(default_technician)
-    logger.info("Created default technician account")
+try:
+    client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000)
+    # Test the connection
+    client.admin.command('ping')
+    db = client.warranty_assistant
+    users_collection = db.users
+    technicians_collection = db.technicians
+    chats_collection = db.chats
+    purchases_collection = db.purchases
+    logger.info("Successfully connected to MongoDB")
+    
+    # Add a default technician account if it doesn't exist
+    default_technician = {
+        'email': 'tech@warranty.com',
+        'whatsapp': '1234567890',
+        'name': 'Default Technician',
+        'role': 'technician'
+    }
+
+    if not technicians_collection.find_one({'email': default_technician['email']}):
+        technicians_collection.insert_one(default_technician)
+        logger.info("Created default technician account")
+        
+except Exception as e:
+    logger.warning(f"Failed to connect to MongoDB: {str(e)}")
+    logger.warning("Running in local mode without database functionality")
+    # Create mock collections for local development
+    class MockCollection:
+        def find_one(self, *args, **kwargs):
+            return None
+        def insert_one(self, *args, **kwargs):
+            return type('obj', (object,), {'inserted_id': 'mock_id'})()
+        def update_one(self, *args, **kwargs):
+            return type('obj', (object,), {'modified_count': 1})()
+        def find(self, *args, **kwargs):
+            return []
+        def update_many(self, *args, **kwargs):
+            return type('obj', (object,), {'modified_count': 0})()
+    
+    users_collection = MockCollection()
+    technicians_collection = MockCollection()
+    chats_collection = MockCollection()
+    purchases_collection = MockCollection()
 
 # Configure Google Gemini API
 GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY")
@@ -77,7 +111,8 @@ def get_or_create_chat_session(user_id, username):
             "updated_at": datetime.utcnow(),
             "login_time": datetime.utcnow()
         }
-        chats_collection.insert_one(chat_session)
+        result = chats_collection.insert_one(chat_session)
+        chat_session['_id'] = result.inserted_id
     else:
         # Update login time for existing session
         chats_collection.update_one(
@@ -101,8 +136,15 @@ def update_chat_session(chat_id, message, response):
         }
     ]
     
+    # Convert string ID to ObjectId if it's not already an ObjectId
+    if isinstance(chat_id, str) and chat_id != 'mock_id':
+        try:
+            chat_id = ObjectId(chat_id)
+        except:
+            pass  # Keep as string if conversion fails
+    
     chats_collection.update_one(
-        {"_id": ObjectId(chat_id)},
+        {"_id": chat_id},
         {
             "$push": {"messages": {"$each": chat_messages}},
             "$set": {"updated_at": datetime.utcnow()}
@@ -110,7 +152,14 @@ def update_chat_session(chat_id, message, response):
     )
 
 def get_chat_history(chat_id, limit=5):
-    chat = chats_collection.find_one({"_id": ObjectId(chat_id)})
+    # Convert string ID to ObjectId if it's not already an ObjectId
+    if isinstance(chat_id, str) and chat_id != 'mock_id':
+        try:
+            chat_id = ObjectId(chat_id)
+        except:
+            pass  # Keep as string if conversion fails
+    
+    chat = chats_collection.find_one({"_id": chat_id})
     if not chat:
         return []
     messages = chat.get("messages", [])
@@ -500,7 +549,8 @@ def authenticate():
             return jsonify({'error': 'Invalid credentials'}), 401
             
         # Convert ObjectId to string and add role
-        user['_id'] = str(user['_id'])
+        if hasattr(user['_id'], '__str__'):
+            user['_id'] = str(user['_id'])
         user['role'] = 'technician' if is_technician else 'user'
         
         return jsonify(user), 200
@@ -519,13 +569,18 @@ def get_user_chat_history(user_id):
         
         # Convert ObjectId to string for JSON serialization
         for session in chat_sessions:
-            session['_id'] = str(session['_id'])
+            if hasattr(session['_id'], '__str__'):
+                session['_id'] = str(session['_id'])
             # Convert datetime objects to ISO format strings
-            session['created_at'] = session['created_at'].isoformat()
-            session['updated_at'] = session['updated_at'].isoformat()
-            session['login_time'] = session['login_time'].isoformat()
+            if hasattr(session['created_at'], 'isoformat'):
+                session['created_at'] = session['created_at'].isoformat()
+            if hasattr(session['updated_at'], 'isoformat'):
+                session['updated_at'] = session['updated_at'].isoformat()
+            if hasattr(session['login_time'], 'isoformat'):
+                session['login_time'] = session['login_time'].isoformat()
             for message in session['messages']:
-                message['timestamp'] = message['timestamp'].isoformat()
+                if hasattr(message['timestamp'], 'isoformat'):
+                    message['timestamp'] = message['timestamp'].isoformat()
         
         return jsonify({
             'sessions': chat_sessions,
@@ -538,9 +593,16 @@ def get_user_chat_history(user_id):
 @app.route('/api/chat-history/<user_id>/<session_id>', methods=['GET'])
 def get_chat_session(user_id, session_id):
     try:
+        # Convert string ID to ObjectId if it's not already an ObjectId
+        if isinstance(session_id, str) and session_id != 'mock_id':
+            try:
+                session_id = ObjectId(session_id)
+            except:
+                pass  # Keep as string if conversion fails
+        
         # Get specific chat session
         chat_session = chats_collection.find_one({
-            "_id": ObjectId(session_id),
+            "_id": session_id,
             "user_id": user_id
         })
         
@@ -548,13 +610,18 @@ def get_chat_session(user_id, session_id):
             return jsonify({'error': 'Chat session not found'}), 404
             
         # Convert ObjectId to string for JSON serialization
-        chat_session['_id'] = str(chat_session['_id'])
+        if hasattr(chat_session['_id'], '__str__'):
+            chat_session['_id'] = str(chat_session['_id'])
         # Convert datetime objects to ISO format strings
-        chat_session['created_at'] = chat_session['created_at'].isoformat()
-        chat_session['updated_at'] = chat_session['updated_at'].isoformat()
-        chat_session['login_time'] = chat_session['login_time'].isoformat()
+        if hasattr(chat_session['created_at'], 'isoformat'):
+            chat_session['created_at'] = chat_session['created_at'].isoformat()
+        if hasattr(chat_session['updated_at'], 'isoformat'):
+            chat_session['updated_at'] = chat_session['updated_at'].isoformat()
+        if hasattr(chat_session['login_time'], 'isoformat'):
+            chat_session['login_time'] = chat_session['login_time'].isoformat()
         for message in chat_session['messages']:
-            message['timestamp'] = message['timestamp'].isoformat()
+            if hasattr(message['timestamp'], 'isoformat'):
+                message['timestamp'] = message['timestamp'].isoformat()
         
         return jsonify(chat_session)
     except Exception as e:
@@ -578,7 +645,8 @@ def get_user_purchases(user_id):
         
         # Convert ObjectId to string for JSON serialization
         for purchase in purchases:
-            purchase['_id'] = str(purchase['_id'])
+            if hasattr(purchase['_id'], '__str__'):
+                purchase['_id'] = str(purchase['_id'])
         
         return jsonify({
             'purchases': purchases,
@@ -589,4 +657,4 @@ def get_user_purchases(user_id):
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', debug=True)
+    app.run(host='0.0.0.0', port=5001, debug=True)
