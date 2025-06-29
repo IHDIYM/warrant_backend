@@ -578,7 +578,7 @@ def get_user_chat_history(user_id):
         # Get all chat sessions for the user, sorted by most recent first
         chat_sessions = list(chats_collection.find(
             {"user_id": user_id}
-        ).sort("created_at", -1))
+        ).sort([("created_at", -1)]))
         
         # Convert ObjectId to string for JSON serialization
         for session in chat_sessions:
@@ -647,7 +647,7 @@ def get_user_purchases(user_id):
         # Get all purchases for the user, sorted by purchase date (most recent first)
         purchases = list(purchases_collection.find(
             {"userId": user_id}
-        ).sort("purchaseDate", -1))
+        ).sort([("purchaseDate", -1)]))
         
         # If no purchases found, return empty list
         if not purchases:
