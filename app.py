@@ -28,7 +28,7 @@ if not os.path.exists(FAISS_PATH):
 
 # MongoDB setup
 # Set MONGODB_URI environment variable in Render with your actual MongoDB Atlas connection string
-MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb+srv://ihdiym:4uVbFCTl1dG9Y23u@ai-cluster.tsnsuuu.mongodb.net/?retryWrites=true&w=majority&appName=ai-cluster&ssl=true&tlsAllowInvalidCertificates=true")
+MONGODB_URI = os.environ.get("MONGODB_URI", "mongodb+srv://ihdiym:4uVbFCTl1dG9Y23u@ai-cluster.tsnsuuu.mongodb.net/?retryWrites=true&w=majority&appName=ai-cluster")
 
 # Initialize MongoDB connection with error handling
 client = None
@@ -39,7 +39,20 @@ chats_collection = None
 purchases_collection = None
 
 try:
-    client = MongoClient(MONGODB_URI, serverSelectionTimeoutMS=5000, tlsAllowInvalidCertificates=True)
+    # Updated connection with proper SSL/TLS configuration for Render
+    client = MongoClient(
+        MONGODB_URI,
+        serverSelectionTimeoutMS=10000,
+        connectTimeoutMS=10000,
+        socketTimeoutMS=10000,
+        maxPoolSize=10,
+        minPoolSize=1,
+        maxIdleTimeMS=30000,
+        retryWrites=True,
+        retryReads=True,
+        tls=True,
+        tlsInsecure=False
+    )
     # Test the connection
     client.admin.command('ping')
     db = client.warranty_assistant
@@ -650,4 +663,5 @@ def get_user_purchases(user_id):
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001, debug=True)
+    port = int(os.environ.get('PORT', 5001))
+    app.run(host='0.0.0.0', port=port, debug=False)
