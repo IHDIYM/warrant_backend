@@ -55,10 +55,7 @@ try:
         minPoolSize=1,
         maxIdleTimeMS=30000,
         retryWrites=True,
-        retryReads=True,
-        ssl_cert_reqs=ssl.CERT_NONE,
-        ssl_ca_certs=None,
-        ssl_match_hostname=False
+        retryReads=True
     )
     # Test the connection
     client.admin.command('ping')
